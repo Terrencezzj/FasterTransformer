@@ -193,7 +193,7 @@ class GPTWeights:
                           layer_num)  # adaptor2_bias2
 
         # Initialization
-        self._map(lambda w: torch.nn.init.normal_(w, mean=0., std=1.))
+        self._map(lambda w: torch.nn.init.normal_(w, mean=0., std=0.01))
 
         if (self.int8_mode != 0):
             self.int8_w.extend([torch.zeros(global_hidden_units, local_hidden_units * 3, dtype=torch.int8)] *
