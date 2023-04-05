@@ -48,7 +48,8 @@ GptFp8Op::GptFp8Op(const int64_t                 head_num,
                                                        end_id,
                                                        tensor_para_size,
                                                        pipeline_para_size,
-                                                       ckpt_path);
+                                                       ckpt_path,
+                                                       weights);
 }
 
 GptFp8Op::~GptFp8Op()

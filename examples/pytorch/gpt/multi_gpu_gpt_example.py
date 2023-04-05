@@ -29,6 +29,7 @@ from examples.pytorch.gpt.utils import comm, gpt_decoder
 from examples.pytorch.gpt.utils.parallel_gpt import ParallelGPT
 
 from utils import word_list
+from utils.gpt_fp8 import GPTFp8
 
 
 @torch.no_grad()
@@ -75,7 +76,7 @@ def main():
     parser.add_argument('--inference_data_type',
                         '--data_type',
                         type=str,
-                        choices=['fp32', 'fp16', 'bf16'],
+                        choices=['fp32', 'fp16', 'bf16', 'fp8'],
                         default='fp16')
     parser.add_argument('--time', action='store_true', help='whether or not to measure time elapsed.')
     parser.add_argument('--sample_input_file',
@@ -228,7 +229,7 @@ def main():
     device = comm.get_device()
 
     # Inputs
-    for max_batch_size in [8, 16, 32, 64, 128, 256]:
+    for max_batch_size in [1, 8, 16, 32, 64, 128, 256]:
         contexts = []
         if args.sample_input_file:  # conditional case
             with open(args.sample_input_file, "r") as f:
@@ -247,7 +248,21 @@ def main():
         start_lengths = torch.IntTensor(start_lengths)
 
         # Prepare model.
-        if not args.use_gpt_decoder_ops:
+        if args.inference_data_type == 'fp8':
+            gpt = GPTFp8(head_num,
+                         size_per_head,
+                         vocab_size,
+                         start_id,
+                         end_id,
+                         layer_num,
+                         max_seq_len,
+                         tensor_para_size,
+                         pipeline_para_size,
+                         lib_path=args.lib_path,
+                         ckpt_path=args.ckpt_path,
+                         int8_mode=0,
+                         weights_data_type=args.weights_data_type)
+        elif not args.use_gpt_decoder_ops:
             gpt = ParallelGPT(head_num,
                               size_per_head,
                               vocab_size,
@@ -299,21 +314,28 @@ def main():
             batch_size, dtype=torch.float32)
         presence_penalty_vec = None if presence_penalty == 0. else presence_penalty * torch.ones(batch_size,
                                                                                                  dtype=torch.float32)
+        if args.inference_data_type == 'fp8':
+            infer_decode_args = dict(beam_width=1,
+                                     top_k=1,
+                                     top_p=0.0,
+                                     temperature=1.0,
+                                     repetition_penalty=1,
+                                     random_seed=5)
+        else:
+            infer_decode_args = dict(beam_width=beam_width,
+                                     top_k=top_k * torch.ones(batch_size, dtype=torch.int32),
+                                     top_p=top_p * torch.ones(batch_size, dtype=torch.float32),
+                                     temperature=temperature * torch.ones(batch_size, dtype=torch.float32),
+                                     repetition_penalty=repetition_penalty_vec,
+                                     presence_penalty=presence_penalty_vec,
+                                     beam_search_diversity_rate=beam_search_diversity_rate *
+                                     torch.ones(batch_size, dtype=torch.float32),
+                                     len_penalty=len_penalty * torch.ones(size=[batch_size], dtype=torch.float32),
+                                     bad_words_list=bad_words_list,
+                                     min_length=min_length * torch.ones(size=[batch_size], dtype=torch.int32),
+                                     random_seed=random_seed_tensor)
 
-        infer_decode_args = dict(beam_width=beam_width,
-                                 top_k=top_k * torch.ones(batch_size, dtype=torch.int32),
-                                 top_p=top_p * torch.ones(batch_size, dtype=torch.float32),
-                                 temperature=temperature * torch.ones(batch_size, dtype=torch.float32),
-                                 repetition_penalty=repetition_penalty_vec,
-                                 presence_penalty=presence_penalty_vec,
-                                 beam_search_diversity_rate=beam_search_diversity_rate *
-                                 torch.ones(batch_size, dtype=torch.float32),
-                                 len_penalty=len_penalty * torch.ones(size=[batch_size], dtype=torch.float32),
-                                 bad_words_list=bad_words_list,
-                                 min_length=min_length * torch.ones(size=[batch_size], dtype=torch.int32),
-                                 random_seed=random_seed_tensor)
-
-        for output_len in [128, 256, 512, 1024, 2048]:
+        for output_len in [128, 256, 512, 1024, 1900]:
 
             if not args.use_gpt_decoder_ops:
 

@@ -54,17 +54,18 @@ public:
 template<typename T1, typename T2>
 class FTGptFp8: public IFGptFp8 {
 public:
-    FTGptFp8(const size_t      head_num,
-             const size_t      size_per_head,
-             const size_t      inter_size,
-             const size_t      layer_num,
-             const size_t      vocab_size,
-             const size_t      max_seq_len,
-             const int         start_id,
-             const int         end_id,
-             const int         tensor_para_size,
-             const int         pipeline_para_size,
-             const std::string ckpt_path):
+    FTGptFp8(const size_t             head_num,
+             const size_t             size_per_head,
+             const size_t             inter_size,
+             const size_t             layer_num,
+             const size_t             vocab_size,
+             const size_t             max_seq_len,
+             const int                start_id,
+             const int                end_id,
+             const int                tensor_para_size,
+             const int                pipeline_para_size,
+             const std::string        ckpt_path,
+             const vector<th::Tensor> weights):
         head_num_(head_num),
         size_per_head_(size_per_head),
         inter_size_(inter_size),
@@ -75,7 +76,8 @@ public:
         end_id_(end_id),
         ckpt_path_(ckpt_path),
         tensor_para_size_(tensor_para_size),
-        pipeline_para_size_(pipeline_para_size)
+        pipeline_para_size_(pipeline_para_size),
+        weights_(weights)
     {
         ftNcclInitialize(tensor_para_, pipeline_para_, tensor_para_size_, pipeline_para_size_);
         ft::check_cuda_error(cublasLtCreate(&cublasltHandle_));
@@ -86,18 +88,54 @@ public:
         ft::check_cuda_error(cudaGetDeviceProperties(&prop_, 0));
 
         const size_t hidden_units = head_num_ * size_per_head_;
-        gpt_weights_              = new ft::GptFP8Weight<T1, T2>(hidden_units,
-                                                    inter_size_,
-                                                    vocab_size_,
-                                                    layer_num_,
-                                                    max_seq_len_,
-                                                    tensor_para_size_,
-                                                    tensor_para_rank_,
-                                                    pipeline_para_size_,
-                                                    pipeline_para_rank_);
+        // gpt_weights_              = new ft::GptFP8Weight<T1, T2>(hidden_units,
+        //                                             inter_size_,
+        //                                             vocab_size_,
+        //                                             layer_num_,
+        //                                             max_seq_len_,
+        //                                             tensor_para_size_,
+        //                                             tensor_para_rank_,
+        //                                             pipeline_para_size_,
+        //                                             pipeline_para_rank_);
 
-        gpt_weights_->loadModel(ckpt_path_);
-        gpt_weights_->transposeWeight();
+        // gpt_weights_->loadModel(ckpt_path_);
+        // gpt_weights_->transposeWeight();
+        gpt_weights_.resizeLayer(layer_num_);
+        for (int i = 0; i < (int)layer_num_; i++) {
+            gpt_weights_.decoder_layer_weights[i]->pre_layernorm_weights.gamma =
+                get_ptr<T2>(weights_[i + 0 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->pre_layernorm_weights.beta =
+                get_ptr<T2>(weights_[i + 1 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->self_attention_weights.query_weight.kernel =
+                get_ptr<T2>(weights_[i + 2 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->self_attention_weights.query_weight.bias =
+                get_ptr<T2>(weights_[i + 3 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->self_attention_weights.attention_output_weight.kernel =
+                get_ptr<T2>(weights_[i + 4 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->self_attention_weights.attention_output_weight.bias =
+                get_ptr<T2>(weights_[i + 5 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->self_attn_layernorm_weights.gamma =
+                get_ptr<T2>(weights_[i + 6 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->self_attn_layernorm_weights.beta =
+                get_ptr<T2>(weights_[i + 7 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->ffn_weights.intermediate_weight.kernel =
+                get_ptr<T2>(weights_[i + 8 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->ffn_weights.intermediate_weight.bias =
+                get_ptr<T2>(weights_[i + 9 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->ffn_weights.output_weight.kernel =
+                get_ptr<T2>(weights_[i + 10 * layer_num_]);
+            gpt_weights_.decoder_layer_weights[i]->ffn_weights.output_weight.bias =
+                get_ptr<T2>(weights_[i + 11 * layer_num_]);
+        }
+
+        size_t weight_offset                      = 2;
+        gpt_weights_.post_decoder_layernorm.gamma = get_ptr<T2>(weights_[12 * layer_num_ + 2 - weight_offset]);
+        gpt_weights_.post_decoder_layernorm.beta  = get_ptr<T2>(weights_[12 * layer_num_ + 3 - weight_offset]);
+
+        gpt_weights_.position_encoding_table       = get_ptr<T2>(weights_[12 * layer_num_ + 4 - weight_offset]);
+        gpt_weights_.pre_decoder_embedding_table   = get_ptr<T2>(weights_[12 * layer_num_ + 5 - weight_offset]);
+        gpt_weights_.post_decoder_embedding.kernel = get_ptr<T2>(weights_[12 * layer_num_ + 6 - weight_offset]);
+        ft::check_cuda_error(cudaGetDeviceProperties(&prop_, 0));
     }
 
     ~FTGptFp8() override
@@ -267,14 +305,15 @@ private:
     const int    start_id_;
     const int    end_id_;
 
-    size_t        tensor_para_size_;
-    size_t        pipeline_para_size_;
-    size_t        tensor_para_rank_;
-    ft::NcclParam tensor_para_;
-    size_t        pipeline_para_rank_;
-    ft::NcclParam pipeline_para_;
-    int           world_size_ = 1;
-    int           rank_       = 0;
+    size_t                  tensor_para_size_;
+    size_t                  pipeline_para_size_;
+    size_t                  tensor_para_rank_;
+    ft::NcclParam           tensor_para_;
+    size_t                  pipeline_para_rank_;
+    ft::NcclParam           pipeline_para_;
+    int                     world_size_ = 1;
+    int                     rank_       = 0;
+    std::vector<th::Tensor> weights_;
 
     // std::vector<th::Tensor> weights_;
     cublasLtHandle_t                                cublasltHandle_;
