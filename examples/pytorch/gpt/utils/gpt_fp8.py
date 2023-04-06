@@ -114,7 +114,7 @@ class GPTFp8Weights(object):
         self.w.append(torch.zeros(vocab_size, global_hidden_units, dtype=torch.bfloat16))  # embedding_kernel
 
         # Initialization
-        self._map(lambda w: torch.nn.init.normal_(w, mean=0., std=0.01))
+        # self._map(lambda w: torch.nn.init.normal_(w, mean=0., std=0.01))
 
         if (self.int8_mode != 0):
             self.int8_w.extend([torch.zeros(global_hidden_units, local_hidden_units * 3, dtype=torch.int8)] *

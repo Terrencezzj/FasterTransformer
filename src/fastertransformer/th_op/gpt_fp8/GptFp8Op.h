@@ -107,11 +107,11 @@ public:
             gpt_weights_.decoder_layer_weights[i]->pre_layernorm_weights.beta =
                 get_ptr<T2>(weights_[i + 1 * layer_num_]);
             gpt_weights_.decoder_layer_weights[i]->self_attention_weights.query_weight.kernel =
-                get_ptr<T2>(weights_[i + 2 * layer_num_]);
+                get_ptr<T1>(weights_[i + 2 * layer_num_]);
             gpt_weights_.decoder_layer_weights[i]->self_attention_weights.query_weight.bias =
                 get_ptr<T2>(weights_[i + 3 * layer_num_]);
             gpt_weights_.decoder_layer_weights[i]->self_attention_weights.attention_output_weight.kernel =
-                get_ptr<T2>(weights_[i + 4 * layer_num_]);
+                get_ptr<T1>(weights_[i + 4 * layer_num_]);
             gpt_weights_.decoder_layer_weights[i]->self_attention_weights.attention_output_weight.bias =
                 get_ptr<T2>(weights_[i + 5 * layer_num_]);
             gpt_weights_.decoder_layer_weights[i]->self_attn_layernorm_weights.gamma =
@@ -119,11 +119,11 @@ public:
             gpt_weights_.decoder_layer_weights[i]->self_attn_layernorm_weights.beta =
                 get_ptr<T2>(weights_[i + 7 * layer_num_]);
             gpt_weights_.decoder_layer_weights[i]->ffn_weights.intermediate_weight.kernel =
-                get_ptr<T2>(weights_[i + 8 * layer_num_]);
+                get_ptr<T1>(weights_[i + 8 * layer_num_]);
             gpt_weights_.decoder_layer_weights[i]->ffn_weights.intermediate_weight.bias =
                 get_ptr<T2>(weights_[i + 9 * layer_num_]);
             gpt_weights_.decoder_layer_weights[i]->ffn_weights.output_weight.kernel =
-                get_ptr<T2>(weights_[i + 10 * layer_num_]);
+                get_ptr<T1>(weights_[i + 10 * layer_num_]);
             gpt_weights_.decoder_layer_weights[i]->ffn_weights.output_weight.bias =
                 get_ptr<T2>(weights_[i + 11 * layer_num_]);
         }
@@ -281,7 +281,7 @@ public:
         }
 
         try {
-            gpt.forward(&output_tensors, &input_tensors, gpt_weights_);
+            gpt.forward(&output_tensors, &input_tensors, &gpt_weights_);
         }
         catch (std::runtime_error& error) {
             std::cout << error.what();
@@ -316,12 +316,12 @@ private:
     std::vector<th::Tensor> weights_;
 
     // std::vector<th::Tensor> weights_;
-    cublasLtHandle_t                                cublasltHandle_;
-    std::mutex*                                     cublas_wrapper_mutex_;
-    ft::cublasAlgoMap*                              cublas_algo_map_;
-    struct cudaDeviceProp                           prop_;
-    const std::string                               ckpt_path_;
-    ft::GptFP8Weight<__nv_fp8_e4m3, __nv_bfloat16>* gpt_weights_;
+    cublasLtHandle_t                               cublasltHandle_;
+    std::mutex*                                    cublas_wrapper_mutex_;
+    ft::cublasAlgoMap*                             cublas_algo_map_;
+    struct cudaDeviceProp                          prop_;
+    const std::string                              ckpt_path_;
+    ft::GptFP8Weight<__nv_fp8_e4m3, __nv_bfloat16> gpt_weights_;
 };
 
 class GptFp8Op: public th::jit::CustomClassHolder {
