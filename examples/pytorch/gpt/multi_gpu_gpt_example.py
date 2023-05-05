@@ -335,7 +335,7 @@ def main():
                                      min_length=min_length * torch.ones(size=[batch_size], dtype=torch.int32),
                                      random_seed=random_seed_tensor)
 
-        for output_len in [128, 256, 512, 1024, 1900]:
+        for output_len in [128, 256, 512, 1024, 2048]:
 
             if not args.use_gpt_decoder_ops:
 

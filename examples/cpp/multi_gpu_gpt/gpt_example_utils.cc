@@ -343,7 +343,7 @@ void populate_request(std::unordered_map<std::string, Tensor>& input_tensors,
                       const request_config_t&                  request_config)
 {
     // Read ids of request from file.
-    size_t     max_input_len      = 0;
+    size_t     max_input_len      = 64;
     auto       request_batch_size = request_config.request_batch_size;
     const auto beam_width         = request_config.beam_width;
     const auto request_output_len = request_config.request_output_len;

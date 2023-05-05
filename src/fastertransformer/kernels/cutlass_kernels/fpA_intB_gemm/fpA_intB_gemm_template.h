@@ -446,7 +446,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::dispatch_to_arch<EpilogueTag>(cons
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm75, EpilogueTag>(
             A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
     }
-    else if (sm_ >= 80 && sm_ < 90) {
+    else if (sm_ >= 80) {
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm80, EpilogueTag>(
             A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
     }

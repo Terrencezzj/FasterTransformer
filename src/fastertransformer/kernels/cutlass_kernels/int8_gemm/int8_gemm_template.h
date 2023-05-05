@@ -478,7 +478,7 @@ void CutlassInt8GemmRunner<T>::dispatch_to_arch(const int8_t*     A,
     /*         A, B, alpha_col, alpha_row, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
      */
     /* } */
-    if (sm_ >= 80 && sm_ < 90) {
+    if (sm_ >= 80) {
         dispatch_gemm_to_cutlass<T, cutlass::arch::Sm80>(A,
                                                          B,
                                                          quant_mode,

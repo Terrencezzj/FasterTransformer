@@ -134,7 +134,7 @@ void multi_gpu_gpt_example(const INIReader reader, std::string in_csv)
                                      model_config.prompt_learning_type,
                                      p_prompt_tuning_table_pair,
                                      model_config.gpt_variants);
-    gpt_weights.loadModel(model_config.model_dir);
+    // gpt_weights.loadModel(model_config.model_dir);
 #ifdef SPARSITY_ENABLED
     if (model_config.sparse) {
         printf("[INFO] Compress weights for sparse inference\n");

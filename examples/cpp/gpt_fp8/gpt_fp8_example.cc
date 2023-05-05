@@ -29,7 +29,7 @@
 using namespace fastertransformer;
 
 template<typename T1, typename T2>
-void gpt_example(const INIReader reader);
+void gpt_example(const INIReader reader, const int output_len);
 
 int main(int argc, char* argv[])
 {
@@ -50,7 +50,10 @@ int main(int argc, char* argv[])
         std::cout << "[ERROR] Can't load '" << ini_name << "'\n";
         return -1;
     }
-    gpt_example<__nv_fp8_e4m3, __nv_bfloat16>(reader);
+    int output_len;
+    for (output_len = 128; output_len < 4096; output_len *= 2) {
+        gpt_example<__nv_fp8_e4m3, __nv_bfloat16>(reader, output_len);
+    }
     mpi::finalize();
     return 0;
 }
@@ -124,7 +127,7 @@ int read_start_ids(int               batch_size,
 }
 
 template<typename T1, typename T2>
-void gpt_example(const INIReader reader)
+void gpt_example(const INIReader reader, const int output_len)
 {
     const std::string model_name                 = reader.Get("ft_instance_hyperparameter", "model_name");
     const size_t      max_batch_size             = reader.GetInteger("ft_instance_hyperparameter", "max_batch_size");
@@ -151,7 +154,7 @@ void gpt_example(const INIReader reader)
 
     const size_t request_batch_size = reader.GetInteger("request", "request_batch_size");
     // The length of tokens we hope this model to generate
-    const int request_output_len = reader.GetInteger("request", "request_output_len");
+    const int request_output_len = output_len;
 
     const int start_id = 50256;
     const int end_id   = 50256;
@@ -262,7 +265,7 @@ void gpt_example(const INIReader reader)
                                                         pipeline_para_size,
                                                         pipeline_para_rank);
 
-    gpt_weights.loadModel(model_dir);
+    // gpt_weights.loadModel(model_dir);
     gpt_weights.transposeWeight();
 
 #ifdef SPARSITY_ENABLED
@@ -383,38 +386,38 @@ void gpt_example(const INIReader reader)
            vocab_size,
            ((end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) * 0.001) / ite);
 
-    if (rank == 0) {
+    // if (rank == 0) {
 
-        std::string fName   = "out";
-        auto        outFile = std::ofstream(fName, std::ios::out);
-        if (!outFile.is_open()) {
-            printf("[WARNING] Cannot write results into output file %s \n", fName.c_str());
-        }
-        else {
-            size_t outCount = total_output_len * request_batch_size * beam_width;
-            int*   hBuf     = new int[outCount];
-            cudaD2Hcpy(hBuf, d_output_ids, outCount);
+    //     std::string fName   = "out";
+    //     auto        outFile = std::ofstream(fName, std::ios::out);
+    //     if (!outFile.is_open()) {
+    //         printf("[WARNING] Cannot write results into output file %s \n", fName.c_str());
+    //     }
+    //     else {
+    //         size_t outCount = total_output_len * request_batch_size * beam_width;
+    //         int*   hBuf     = new int[outCount];
+    //         cudaD2Hcpy(hBuf, d_output_ids, outCount);
 
-            {
-                std::cout << "Writing " << outCount << " elements\n";
-                int zeroCount = 0;
-                for (size_t i = 0; i < outCount; i++) {
-                    if (hBuf[i] == int(0))
-                        zeroCount++;
-                    outFile << hBuf[i] << " ";
-                    if ((i + 1) % (total_output_len) == 0)
-                        outFile << std::endl;
+    //         {
+    //             std::cout << "Writing " << outCount << " elements\n";
+    //             int zeroCount = 0;
+    //             for (size_t i = 0; i < outCount; i++) {
+    //                 if (hBuf[i] == int(0))
+    //                     zeroCount++;
+    //                 outFile << hBuf[i] << " ";
+    //                 if ((i + 1) % (total_output_len) == 0)
+    //                     outFile << std::endl;
 
-                    if (i < 10)
-                        printf("%5d ", hBuf[i]);
-                    if ((i + 1) % (total_output_len) == 0 && i < 10)
-                        std::cout << std::endl;
-                }
-                std::cout << std::endl << "zeroCount = " << zeroCount << std::endl;
-            }
-            delete[] hBuf;
-        }
-    }
+    //                 if (i < 10)
+    //                     printf("%5d ", hBuf[i]);
+    //                 if ((i + 1) % (total_output_len) == 0 && i < 10)
+    //                     std::cout << std::endl;
+    //             }
+    //             std::cout << std::endl << "zeroCount = " << zeroCount << std::endl;
+    //         }
+    //         delete[] hBuf;
+    //     }
+    // }
 
 #ifdef SPARSITY_ENABLED
     // cusparseLtDestroy(&cusparselt_handle);
